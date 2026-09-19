@@ -18,42 +18,20 @@ jobs:
           
       - name: Inject Hardware Mappings and Switch Fallback
         run: |
-          # 1. CREATE THE DEVICE TREE PATCH FILE DIRECTLY
-          cat << 'EOF' > workspace/target/linux/ipq40xx/patches-5.15/099-add-hl-wr832-5g.patch
-          --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
-          +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
-          leds {
-              compatible = "gpio-leds";
-              sys {
-                  label = "green:sys";
-                  gpios = <&tlmm 3 GPIO_ACTIVE_HIGH>;
-              };
-              wifi2g {
-                  label = "green:wlan2g";
-                  gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
-              };
-              wifi5g {
-                  label = "green:wlan5g";
-                  gpios = <&tlmm 2 GPIO_ACTIVE_HIGH>;
-              };
-              usb3 {
-                  label = "green:usb";
-                  gpios = <&tlmm 5 GPIO_ACTIVE_HIGH>;
-              };
-              internet {
-                  label = "green:internet";
-                  gpios = <&tlmm 4 GPIO_ACTIVE_HIGH>;
-              };
-          };
-          keys {
-              compatible = "gpio-keys";
-              reset {
-                  label = "reset";
-                  gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
-                  linux,code = <KEY_RESTART>;
-              };
-          };
+          # 1. INJECT CUSTOM BOOT SETTINGS (LED & BUTTON MAPS)
+          mkdir -p workspace/files/etc/board.d/
+          cat << 'EOF' > workspace/files/etc/board.d/01_leds
+          #!/bin/sh
+          . /lib/functions/uci-defaults.sh
+          board_config_update
+          # Mapping system variables directly into UCI instead of broken source code patches
+          ucidef_set_led_default "sys" "SYS" "green:sys" "1"
+          ucidef_set_led_wlan "wlan2g" "WLAN2G" "green:wlan2g" "phy0radio"
+          ucidef_set_led_wlan "wlan5g" "WLAN5G" "green:wlan5g" "phy1radio"
+          board_config_commit
+          exit 0
           EOF
+          chmod +x workspace/files/etc/board.d/01_leds
 
           # 2. CREATE THE MODEM LTE POWER DAEMON FILE DIRECTLY
           mkdir -p workspace/files/etc/init.d/
@@ -73,7 +51,6 @@ jobs:
           chmod +x workspace/files/etc/init.d/99_lte_power
 
           # 3. CREATE THE SAFE SWITCH FALLBACK DEFAULTS DIRECTLY
-          mkdir -p workspace/files/etc/board.d/
           cat << 'EOF' > workspace/files/etc/board.d/02_network
           #!/bin/sh
           . /lib/functions/uci-defaults.sh
@@ -89,6 +66,7 @@ jobs:
         run: |
           cd workspace
           ./scripts/feeds update -a && ./scripts/feeds install -a
+          # Build a clean configuration profile target for generic IPQ40xx
           echo "CONFIG_TARGET_ipq40xx=y" > .config
           echo "CONFIG_TARGET_ipq40xx_DEVICE_qcom_ipq4019=y" >> .config
           make defconfig
