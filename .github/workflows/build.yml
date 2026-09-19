@@ -1,0 +1,102 @@
+name: Build HL-WR832-5G ROOter
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Prep Compilation Workspace
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison gawk gettext git libncurses5-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget
+          git clone https://github.com workspace
+          
+      - name: Inject Hardware Mappings and Switch Fallback
+        run: |
+          # 1. CREATE THE DEVICE TREE PATCH FILE DIRECTLY
+          cat << 'EOF' > workspace/target/linux/ipq40xx/patches-5.15/099-add-hl-wr832-5g.patch
+          --- a/arch/arm/boot/dts/qcom-ipq4019.dtsi
+          +++ b/arch/arm/boot/dts/qcom-ipq4019.dtsi
+          leds {
+              compatible = "gpio-leds";
+              sys {
+                  label = "green:sys";
+                  gpios = <&tlmm 3 GPIO_ACTIVE_HIGH>;
+              };
+              wifi2g {
+                  label = "green:wlan2g";
+                  gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
+              };
+              wifi5g {
+                  label = "green:wlan5g";
+                  gpios = <&tlmm 2 GPIO_ACTIVE_HIGH>;
+              };
+              usb3 {
+                  label = "green:usb";
+                  gpios = <&tlmm 5 GPIO_ACTIVE_HIGH>;
+              };
+              internet {
+                  label = "green:internet";
+                  gpios = <&tlmm 4 GPIO_ACTIVE_HIGH>;
+              };
+          };
+          keys {
+              compatible = "gpio-keys";
+              reset {
+                  label = "reset";
+                  gpios = <&tlmm 18 GPIO_ACTIVE_LOW>;
+                  linux,code = <KEY_RESTART>;
+              };
+          };
+          EOF
+
+          # 2. CREATE THE MODEM LTE POWER DAEMON FILE DIRECTLY
+          mkdir -p workspace/files/etc/init.d/
+          cat << 'EOF' > workspace/files/etc/init.d/99_lte_power
+          #!/bin/sh /etc/rc.common
+          START=10
+          boot() {
+              for pin in 8 9 10 11 20 34 35; do
+                  if [ ! -d /sys/class/gpio/gpio$pin ]; then
+                      echo $pin > /sys/class/gpio/export
+                  fi
+                  echo out > /sys/class/gpio/gpio$pin/direction
+                  echo 1 > /sys/class/gpio/gpio$pin/value
+              fi
+          }
+          EOF
+          chmod +x workspace/files/etc/init.d/99_lte_power
+
+          # 3. CREATE THE SAFE SWITCH FALLBACK DEFAULTS DIRECTLY
+          mkdir -p workspace/files/etc/board.d/
+          cat << 'EOF' > workspace/files/etc/board.d/02_network
+          #!/bin/sh
+          . /lib/functions/uci-defaults.sh
+          board_config_update
+          board_create_network_switch "switch0" "" "1 2 3 4 5"
+          ucidef_set_interface_lan "eth0"
+          board_config_commit
+          exit 0
+          EOF
+          chmod +x workspace/files/etc/board.d/02_network
+
+      - name: Build Firmware Binary
+        run: |
+          cd workspace
+          ./scripts/feeds update -a && ./scripts/feeds install -a
+          echo "CONFIG_TARGET_ipq40xx=y" > .config
+          echo "CONFIG_TARGET_ipq40xx_DEVICE_qcom_ipq4019=y" >> .config
+          make defconfig
+          make download
+          make -j$(nproc)
+
+      - name: Archive Flashable Image
+        uses: actions/upload-artifact@v3
+        with:
+          name: hl-wr832-5g-firmware
+          path: workspace/bin/targets/ipq40xx/
