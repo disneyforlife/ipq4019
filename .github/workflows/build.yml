@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prep Compilation Workspace
         run: |
@@ -96,7 +96,7 @@ jobs:
           make -j$(nproc)
 
       - name: Archive Flashable Image
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hl-wr832-5g-firmware
           path: workspace/bin/targets/ipq40xx/
