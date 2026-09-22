@@ -1,6 +1,9 @@
 <img width="850" height="337" alt="shared image" src="https://github.com/user-attachments/assets/e660a895-71ba-4521-a4a3-43f4d28dbfaa" />
+
 [HL-WR832_V1(2026-09-07 21_23_25)-1.pdf](https://github.com/user-attachments/files/32530282/HL-WR832_V1.2026-09-07.21_23_25.-1.pdf)
+
 [HL-WR832_V1(2026-09-07 21_23_15).pdf](https://github.com/user-attachments/files/32530279/HL-WR832_V1.2026-09-07.21_23_15.pdf)
+
 [IPQ4019 GPIO(2026-09-07 22_57_39).txt](https://github.com/user-attachments/files/32530301/IPQ4019.GPIO.2026-09-07.22_57_39.txt)
 
 [IPQ4019 GPGPIO3_SYS_LED
